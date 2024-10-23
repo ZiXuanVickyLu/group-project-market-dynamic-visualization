@@ -7,46 +7,19 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     let companyCodeToName = {};
-        fetch('data/filtered_stock_list.json')
-            .then(response => response.json())
-            .then(data => {
-                companyCodeToName = data;
-            })
-            .catch(error => console.error('Error loading company code to name data:', error));
+    fetch('data/filtered_stock_list.json')
+        .then(response => response.json())
+        .then(data => {
+            companyCodeToName = data;
+        })
+        .catch(error => console.error('Error loading company code to name data:', error));
 
-    const industryList = document.getElementById('industry-list');
-    const industryLinks = industryList.querySelectorAll('a');
-    const mainViewer = document.getElementById('main-viewer');
-    let chartInstance = null;
-
-         industryLinks.forEach(link => {
-            link.addEventListener('click', function () {
-                // Remove active state from all links
-                industryLinks.forEach(item => item.style.color = '');
-                // Set active state for the clicked link
-                this.style.color = 'orange';
-
-                const industryName = this.textContent;
-                console.log('Selected Sector:', industryName);
-
-                // Load stock data for the selected industry
-                loadStockData(industryName);
-            });
-        });
-
-        // Add event listener to update the bar chart when the timeline slider changes
-        timeline.addEventListener('input', function () {
-            if (chartInstance) {
-                const industryName = document.querySelector('a[style="color: orange;"]').textContent;
-                loadStockData(industryName);
-            }
-        });
 
 
     function loadStockData(industryName) {
         // Load company names from provided GICS industry data
-         const stockFiles = gicsIndustryData[industryName].map(stock => `${stock}.json`);
-          const stockDataPromises = stockFiles.map(async (fileName, index) => {
+        const stockFiles = gicsIndustryData[industryName].map(stock => `${stock}.json`);
+        const stockDataPromises = stockFiles.map(async (fileName, index) => {
             const stockFilePath = `data/GICS_Stock_Data/${industryName}/${fileName}`;
             const response = await fetch(stockFilePath);
             if (!response.ok) {
@@ -67,10 +40,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         close: entry ? entry.close : null
                     };
                 });
-                displayChart(stockDataArrays,combinedData, industryName);
+                displayChart(stockDataArrays, combinedData, industryName);
             })
             .catch(error => console.error('Error loading stock data:', error));
     }
+
+
+    const industryList = document.getElementById('industry-list');
+    const industryLinks = industryList.querySelectorAll('a');
+    const mainViewer = document.getElementById('main-viewer');
+    let chartInstance = null;
 
     function displayChart(stockDataArrays, stockData, industryName) {
         // Extract data for chart
@@ -93,9 +72,9 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         // Create new bar chart
-       const barCtx = document.createElement('canvas');
-       barCtx.style.height = '200px';
-       barCtx.style.marginBottom = '150px';
+        const barCtx = document.createElement('canvas');
+        barCtx.style.height = '200px';
+        barCtx.style.marginBottom = '150px';
         mainViewer.appendChild(barCtx);
 
         chartInstance = new Chart(barCtx, {
@@ -136,25 +115,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const lineLabels = dates.slice(0, parseInt(timeline.value) + 10).map(date => new Date(date));
         const lineTimes = dates.slice(0, parseInt(timeline.value) + 10);
         const lineDatasets = stockDataArrays.map((stockData, index, array) => {
-        return {
-            label: companyCodeToName[stockData[0].company] || stockData[0].company,
-            data: lineLabels.map(date => {
-                const entry = stockData.find(item => new Date(item.date).getTime() === date.getTime());
-                return entry ? entry.close : null;
-            }),
-            fill: false,
-            borderColor: colorVariation(index, array.length),
-            tension: 0.1
-        };
-    });
+            return {
+                label: companyCodeToName[stockData[0].company] || stockData[0].company,
+                data: lineLabels.map(date => {
+                    const entry = stockData.find(item => new Date(item.date).getTime() === date.getTime());
+                    return entry ? entry.close : null;
+                }),
+                fill: false,
+                borderColor: colorVariation(index, array.length),
+                tension: 0.1
+            };
+        });
 
         // Create new line chart
         lineChartInstance = new Chart(lineCtx, {
             type: 'line',
             animation: {
-                    duration: 0, // Adjust the duration for a smoother animation
-                    easing: 'linear' // Use a smooth easing function
-                },
+                duration: 0, // Adjust the duration for a smoother animation
+                easing: 'linear' // Use a smooth easing function
+            },
 
             data: {
                 labels: lineTimes,
@@ -162,14 +141,14 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             options: {
                 responsive: true,
-                 plugins: {
+                plugins: {
                     legend: {
                         position: 'right'
                     }
                 },
                 scales: {
                     x: {
-                       beginAtZero: true
+                        beginAtZero: true
                     },
                     y: {
                         beginAtZero: true
@@ -180,4 +159,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     }
 
-  });
+
+    industryLinks.forEach(link => {
+        link.addEventListener('click', function () {
+            // Remove active state from all links
+            industryLinks.forEach(item => item.style.color = '');
+            // Set active state for the clicked link
+            this.style.color = 'orange';
+
+            const industryName = this.textContent;
+            console.log('Selected Sector:', industryName);
+
+            // Load stock data for the selected industry
+            loadStockData(industryName);
+        });
+    });
+
+    // Add event listener to update the bar chart when the timeline slider changes
+    timeline.addEventListener('input', function () {
+        if (chartInstance) {
+            const industryName = document.querySelector('a[style="color: orange;"]').textContent;
+            loadStockData(industryName);
+        }
+    });
+
+
+
+
+
+});
