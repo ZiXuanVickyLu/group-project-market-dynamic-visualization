@@ -23,6 +23,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let lineChartInstance = null;
     let bubblePositions = {};
 
+    // Find the Overview link and set it as active
+    const overviewLink = document.querySelector('#industry-list a:first-child');
+    if (overviewLink) {
+        // Set the color to orange (as your active state)
+        overviewLink.style.color = 'orange';
+        // Load the Overview visualization
+        loadOverview();
+    }
+
     function loadStockData(industryName) {
         const selectedDate = dates[timeline.value];
 
