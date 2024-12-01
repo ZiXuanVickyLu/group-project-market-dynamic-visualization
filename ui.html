@@ -26,6 +26,20 @@
     .menu {
       margin-bottom: 20px;
     }
+    .figure-container {
+      margin: 20px 0;
+      text-align: center;
+    }
+    .centered-image {
+      max-width: 100%;
+      height: auto;
+      margin: 0 auto;
+    }
+    .figure-caption {
+      font-style: italic;
+      color: #666;
+      margin-top: 10px;
+    }
   </style>
 </head>
 
@@ -38,6 +52,7 @@
       <div class="column is-one-quarter">
         <aside class="menu">
           <ul class="menu-list" id="industry-list">
+            <li><a id="introduction-link">Introduction</a></li>
             <li><a class="overview-title">Overview</a></li>
             <p class="menu-label">GICS Industries</p>
             <li><a>Automobiles & Components</a></li>
@@ -69,17 +84,46 @@
         </aside>
       </div>
 
-      <!-- Main Viewer: Visualization Area -->
+      <!-- Main content area -->
       <div class="column is-three-quarters">
-        <div id="main-viewer">
-          <!-- Placeholder for visualizations -->
-          <p class="has-text-centered has-text-grey">Visualization will appear here</p>
+        <!-- Visualization section - shown by default -->
+        <div id="visualization-section">
+          <div id="main-viewer">
+            <!-- Placeholder for visualizations -->
+            <p class="has-text-centered has-text-grey">Visualization will appear here</p>
+          </div>
+
+          <!-- Timeline Slider -->
+          <input id="timeline" type="range">
+          <div class="has-text-centered">
+            <span>Date end (slided on week interval): <span id="year-display"></span></span>
+          </div>
         </div>
 
-        <!-- Timeline Slider -->
-        <input id="timeline" type="range">
-        <div class="has-text-centered">
-          <span>Date end (slided on week interval): <span id="year-display"></span></span>
+        <!-- Introduction section - hidden by default -->
+        <div id="introduction-section" style="display: none;">
+          <h2 class="title is-4">Introduction to GICS</h2>
+          <p>
+              The Global Industry Classification Standard (GICS) is a standardized classification system 
+              for equities developed jointly by Morgan Stanley Capital International (MSCI) and 
+              Standard & Poor's. Since its introduction in 1999, GICS has become one of the primary 
+              frameworks for organizing companies in the financial markets.
+          </p>
+          
+          <div class="figure-container">
+              <img src="fig/GICS_map.png" alt="GICS Classification Structure" class="centered-image">
+              <p class="figure-caption">Figure 1: GICS Hierarchical Classification Structure</p>
+          </div>
+
+          <p>
+              GICS follows a hierarchical structure with four levels:
+          </p>
+          <ul>
+              <li><strong>Sectors (11)</strong>: The highest level of classification</li>
+              <li><strong>Industry Groups</strong>: Second level of classification</li>
+              <li><strong>Industries</strong>: Third level of classification</li>
+              <li><strong>Sub-Industries</strong>: The most detailed level of classification</li>
+          </ul>
         </div>
       </div>
     </div>
@@ -117,6 +161,41 @@
     console.log('Selected Year:', this.value);
   });
 
+  const visualizationSection = document.getElementById('visualization-section');
+  const introductionSection = document.getElementById('introduction-section');
+  const introductionLink = document.getElementById('introduction-link');
+  const overviewLink = document.querySelector('.overview-title');
+
+  // Handle Introduction link click
+  introductionLink.addEventListener('click', function() {
+    visualizationSection.style.display = 'none';
+    introductionSection.style.display = 'block';
+    // Update active states
+    industryLinks.forEach(link => link.classList.remove('is-active'));
+    this.classList.add('is-active');
+  });
+
+  // Handle Overview and other industry links clicks
+  overviewLink.addEventListener('click', function() {
+    visualizationSection.style.display = 'block';
+    introductionSection.style.display = 'none';
+    // Update active states
+    industryLinks.forEach(link => link.classList.remove('is-active'));
+    this.classList.add('is-active');
+  });
+
+  // Update other industry links to show visualization section
+  industryLinks.forEach(link => {
+    if (link !== introductionLink && link !== overviewLink) {
+      link.addEventListener('click', function() {
+        visualizationSection.style.display = 'block';
+        introductionSection.style.display = 'none';
+        // Update active states
+        industryLinks.forEach(link => link.classList.remove('is-active'));
+        this.classList.add('is-active');
+      });
+    }
+  });
 </script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="constant_data.js"></script>

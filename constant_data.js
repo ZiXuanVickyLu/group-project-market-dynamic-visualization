@@ -35,7 +35,7 @@ window.industryColors = {
             "Consumer Services": 'rgba(25, 159, 64, 0.6)',
             "Diversified Financials": 'rgba(27, 99, 132, 0.4)',
             "Energy": 'rgba(255, 162, 235, 0.5)',
-            "Food & Staples Retailing": 'rgba(25, 206, 56, 0.4)',
+            "Food & Staples Retailing": 'rgba(25, 50, 56, 0.4)',
             "Food, Beverage & Tobacco": 'rgba(75, 192, 192, 0.5)',
             "Health Care Equipment & Services": 'rgba(15, 102, 255, 0.4)',
             "Household & Personal Products": 'rgba(236, 159, 64, 0.4)',

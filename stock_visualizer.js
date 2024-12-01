@@ -82,7 +82,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return {
                 company: company,
                 company_name: companyCodeToName[company],
-                close: entry ? entry.close : null
+                marketCap: entry ? calculateMarketCap(
+                    parseFloat(entry.turnover),
+                    parseFloat(entry.turnover_rate),
+                    parseFloat(entry.close)
+                ) : null
             };
         });
 
@@ -119,7 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Create container for better layout control
         const chartContainer = document.createElement('div');
         chartContainer.style.width = '100%';
-        chartContainer.style.height = '500px'; // Full viewport height
+        chartContainer.style.height = '900px'; // Full viewport height
         chartContainer.style.display = 'flex';
         chartContainer.style.flexDirection = 'column';
         chartContainer.style.gap = '20px'; // Space between charts
@@ -147,10 +151,15 @@ document.addEventListener('DOMContentLoaded', () => {
         lineContainer.appendChild(lineCtx);
 
         // Calculate the maximum value from all data points for consistent scaling
-        const allPrices = stockDataArrays.flat().map(item => item.close);
-        const maxPrice = Math.ceil(Math.max(...allPrices));
-        // Round up to a nice number for the scale
-        const yAxisMax = Math.ceil(maxPrice / 50) * 50;
+        const allMarketCaps = stockDataArrays.flat().map(item => 
+            calculateMarketCap(
+                parseFloat(item.turnover),
+                parseFloat(item.turnover_rate),
+                parseFloat(item.close)
+            )
+        );
+        const maxMarketCap = Math.ceil(Math.max(...allMarketCaps));
+        const yAxisMax = Math.ceil(maxMarketCap / 10) * 10; // Round to nearest 10B
 
         // Bar Chart with synchronized scale
         chartInstance = new Chart(barCtx, {
@@ -158,8 +167,8 @@ document.addEventListener('DOMContentLoaded', () => {
             data: {
                 labels: stockData.map(data => data.company),
                 datasets: [{
-                    label: `capitalization on ${dates[timeline.value]}`,
-                    data: stockData.map(data => data.close),
+                    label: `Market Cap (Billion USD) on ${dates[timeline.value]}`,
+                    data: stockData.map(data => data.marketCap),
                     backgroundColor: stockData.map(() => industryColors[industryName] || 'rgba(75, 192, 192, 0.2)'),
                     borderColor: stockData.map(() => (industryColors[industryName] || 'rgba(75, 192, 192, 0.2)').replace('0.2', '1')),
                     borderWidth: 1
@@ -171,15 +180,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 animation: {
                     duration: 0
                 },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: `Market Cap (Billion USD) on ${dates[timeline.value]}`,
+                        font: {
+                            size: 16
+                        },
+                        padding: {
+                            top: 10,
+                            bottom: 10
+                        }
+                    }
+                },
                 scales: {
                     x: {
                         beginAtZero: true
                     },
                     y: {
                         beginAtZero: true,
-                        max: yAxisMax, // Set maximum scale
+                        max: yAxisMax,
                         ticks: {
-                            stepSize: Math.ceil(yAxisMax / 10) // Create nice step sizes
+                            callback: function(value) {
+                                return value.toFixed(1) + 'B';
+                            }
                         }
                     }
                 }
@@ -195,7 +219,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const lineDatasets = stockDataArrays.map((stockData, index, array) => ({
             label: companyCodeToName[stockData[0].company] || stockData[0].company,
-            data: stockData.map(item => item.close),
+            data: stockData.map(item => calculateMarketCap(
+                parseFloat(item.turnover),
+                parseFloat(item.turnover_rate),
+                parseFloat(item.close)
+            )),
             fill: false,
             borderColor: colorVariation(index, array.length),
             tension: 0.1
@@ -214,6 +242,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     duration: 0
                 },
                 plugins: {
+                    title: {
+                        display: true,
+                        text: `Stock Closing Price (USD) on ${dates[timeline.value]}`,
+                        font: {
+                            size: 16
+                        },
+                        padding: {
+                            top: 10,
+                            bottom: 10
+                        }
+                    },
                     legend: {
                         position: 'right',
                         labels: {
@@ -281,29 +320,57 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadOverview() {
         mainViewer.innerHTML = '';
 
-        // Create outer container without fixed height
+        // Create outer container with fixed dimensions and padding
         const outerContainer = document.createElement('div');
         outerContainer.style.width = '100%';
+        outerContainer.style.height = '900px'; // Increased height to accommodate legend
         outerContainer.style.display = 'flex';
         outerContainer.style.flexDirection = 'column';
-        outerContainer.style.gap = '20px';
+        outerContainer.style.padding = '10px'; // Add padding to prevent bubble clipping
         mainViewer.appendChild(outerContainer);
 
-        // Create chart container with fixed height
+        // Create chart container with fixed dimensions
         const chartContainer = document.createElement('div');
         chartContainer.style.width = '100%';
-        chartContainer.style.height = '500px';
+        chartContainer.style.height = '900px'; // Increased height
         chartContainer.style.position = 'relative';
+        chartContainer.style.backgroundColor = '#ffffff';
         outerContainer.appendChild(chartContainer);
 
         const bubbleCtx = document.createElement('canvas');
+        bubbleCtx.style.width = '100%';
+        bubbleCtx.style.height = '100%';
         chartContainer.appendChild(bubbleCtx);
 
-        // Create legend container that expands naturally
+        // Create legend container
         const legendContainer = document.createElement('div');
         legendContainer.style.width = '100%';
-        legendContainer.style.padding = '20px 0';
+        legendContainer.style.height = '260px'; // Fixed height for legend
+        legendContainer.style.marginTop = '20px';
+        legendContainer.style.display = 'flex';
+        legendContainer.style.flexWrap = 'wrap';
+        legendContainer.style.justifyContent = 'center';
+        legendContainer.style.gap = '5px';
         outerContainer.appendChild(legendContainer);
+
+        // Add industry legends
+        Object.entries(industryColors).forEach(([industry, color]) => {
+            const legendItem = document.createElement('div');
+            legendItem.style.display = 'flex';
+            legendItem.style.alignItems = 'center';
+            legendItem.style.margin = '5px 10px';
+            
+            const colorBox = document.createElement('span');
+            colorBox.style.width = '12px';
+            colorBox.style.height = '12px';
+            colorBox.style.backgroundColor = color;
+            colorBox.style.marginRight = '5px';
+            colorBox.style.display = 'inline-block';
+            
+            legendItem.appendChild(colorBox);
+            legendItem.appendChild(document.createTextNode(industry));
+            legendContainer.appendChild(legendItem);
+        });
 
         if (Object.keys(bubblePositions).length === 0) {
             initializePositions();
@@ -314,39 +381,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const bubbleData = createBubbleDataFromCache(dates[timeline.value]);
-        drawBubbleChart(bubbleData, bubbleCtx, legendContainer);
+        drawBubbleChart(bubbleData, bubbleCtx);
     }
 
     function initializePositions() {
         const industryNames = Object.keys(gicsIndustryData);
         const gridSize = Math.ceil(Math.sqrt(industryNames.length));
-        const cellSize = 90 / gridSize;
+        const cellSize = 70 / gridSize;  // Keep consistent grid size
 
-        // Assign cluster centers for each industry
-        const industryCenters = {};
+        // Fixed positions for each industry
         industryNames.forEach((industry, index) => {
             const row = Math.floor(index / gridSize);
             const col = index % gridSize;
-            industryCenters[industry] = {
-                x: 5 + cellSize * col + cellSize/2,
-                y: 5 + cellSize * row + cellSize/2
-            };
-        });
-
-        // Generate positions for each company
-        industryNames.forEach(industryName => {
-            const companies = gicsIndustryData[industryName];
-            const center = industryCenters[industryName];
-            const companyCount = companies.length;
-            const clusterRadius = cellSize/3;
-
-            companies.forEach((company, index) => {
-                const angle = index * 2.4;
-                const radius = clusterRadius * Math.sqrt(index / companyCount);
-
+            const centerX = 0 + cellSize * col + cellSize/2;
+            const centerY = 0 + cellSize * row + cellSize/2;
+            
+            // Store the center position for each company in the industry
+            const companies = gicsIndustryData[industry];
+            companies.forEach((company, companyIndex) => {
+                const angle = (companyIndex / companies.length) * 2 * Math.PI;
+                const radius = cellSize / 6; // Fixed radius for company distribution
+                
                 bubblePositions[company] = {
-                    x: center.x + radius * Math.cos(angle),
-                    y: center.y + radius * Math.sin(angle)
+                    x: centerX + radius * Math.cos(angle),
+                    y: centerY + radius * Math.sin(angle)
                 };
             });
         });
@@ -383,105 +441,141 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function createBubbleDataFromCache(selectedDate) {
         const bubbleData = [];
-
+        const sectorData = {};
+        // Remove time-based expansion
+        const expansionFactor = 0.6; // Fixed expansion factor
+    
+        // First pass: Group companies by sector and calculate sector totals
         Object.entries(cachedStockData).forEach(([company, stockInfo]) => {
-            if (stockInfo) {
-                const priceData = stockInfo.data.find(item => item.date === selectedDate);
-                const companyPrice = priceData ? priceData.close : 0;
-
-                bubbleData.push({
-                    x: bubblePositions[company].x,
-                    y: bubblePositions[company].y,
-                    r: Math.max(Math.sqrt(companyPrice) / 3, 1),
-                    label: companyCodeToName[company] || company,
-                    industry: stockInfo.industry,
-                    price: companyPrice,
-                    backgroundColor: stockInfo.color
-                });
+            if (!stockInfo || !bubblePositions[company]) return;
+    
+            const priceData = stockInfo.data.find(item => item.date === selectedDate);
+            const marketCap = priceData ? calculateMarketCap(
+                parseFloat(priceData.turnover),
+                parseFloat(priceData.turnover_rate),
+                parseFloat(priceData.close)
+            ) : 0;
+    
+            const industry = stockInfo.industry;
+            if (!sectorData[industry]) {
+                sectorData[industry] = {
+                    totalMarketCap: 0,
+                    companies: [],
+                    sumX: 0,
+                    sumY: 0,
+                    count: 0,
+                    color: stockInfo.color
+                };
             }
+    
+            const position = bubblePositions[company];
+            sectorData[industry].totalMarketCap += marketCap;
+            sectorData[industry].sumX += position.x;
+            sectorData[industry].sumY += position.y;
+            sectorData[industry].count++;
+            sectorData[industry].companies.push({
+                company,
+                marketCap,
+                position
+            });
         });
-
+    
+        // Add sector circles (frames)
+        Object.entries(sectorData).forEach(([industry, data]) => {
+            const centerX = data.sumX / data.count;
+            const centerY = data.sumY / data.count;
+            
+            // Calculate adjusted center position
+            const adjustedX = 50 + (centerX - 50) * expansionFactor;
+            const adjustedY = 50 + (centerY - 50) * expansionFactor;
+    
+            bubbleData.push({
+                x: adjustedX,
+                y: adjustedY,
+                r: Math.sqrt(data.totalMarketCap) * 1.5 * expansionFactor,
+                label: industry,
+                industry: industry,
+                marketCap: data.totalMarketCap,
+                backgroundColor: 'transparent',
+                borderColor: data.color,
+                borderWidth: 2,
+                isSector: true
+            });
+    
+            // Add company bubbles for this sector
+            data.companies.forEach(({ company, marketCap, position }) => {
+                const adjustedCompanyX = 50 + (position.x - 50) * expansionFactor;
+                const adjustedCompanyY = 50 + (position.y - 50) * expansionFactor;
+    
+                bubbleData.push({
+                    x: adjustedCompanyX,
+                    y: adjustedCompanyY,
+                    r: Math.max(Math.sqrt(marketCap) * 0.8 * expansionFactor, 1),
+                    label: companyCodeToName[company] || company,
+                    industry: industry,
+                    marketCap: marketCap,
+                    backgroundColor: data.color,
+                    borderColor: data.color,
+                    borderWidth: 1,
+                    isSector: false
+                });
+            });
+        });
+    
         return bubbleData;
     }
 
-    function drawBubbleChart(bubbleData, ctx, legendContainer) {
+    function drawBubbleChart(bubbleData, ctx) {
         if (chartInstance) {
             chartInstance.destroy();
         }
 
-        // Clear and style legend container
-        legendContainer.innerHTML = '';
-        legendContainer.style.display = 'flex';
-        legendContainer.style.flexWrap = 'wrap';
-        legendContainer.style.justifyContent = 'center';
-        legendContainer.style.gap = '15px';
-        legendContainer.style.overflow = 'visible'; // Remove scrolling
-
-        // Create legend items
-        const industries = [...new Set(bubbleData.map(d => d.industry))].sort();
-        industries.forEach(industry => {
-            const legendItem = document.createElement('div');
-            legendItem.style.display = 'flex';
-            legendItem.style.alignItems = 'center';
-            legendItem.style.padding = '5px 10px';
-            legendItem.style.whiteSpace = 'nowrap';
-
-            const colorBox = document.createElement('div');
-            colorBox.style.width = '12px';
-            colorBox.style.height = '12px';
-            colorBox.style.backgroundColor = industryColors[industry];
-            colorBox.style.marginRight = '5px';
-            colorBox.style.border = '1px solid rgba(0,0,0,0.2)';
-
-            const label = document.createElement('span');
-            label.textContent = industry;
-            label.style.fontSize = '12px';
-            label.style.color = '#666';
-
-            legendItem.appendChild(colorBox);
-            legendItem.appendChild(label);
-            legendContainer.appendChild(legendItem);
-        });
-
-        // Chart configuration remains the same
         chartInstance = new Chart(ctx, {
             type: 'bubble',
             data: {
                 datasets: [{
-                    label: 'Market Capitalization Overview',
                     data: bubbleData,
-                    backgroundColor: bubbleData.map(d => d.backgroundColor),
-                    borderColor: bubbleData.map(d => d.backgroundColor),
-                    borderWidth: 1
+                    backgroundColor: d => d.raw.backgroundColor,
+                    borderColor: d => d.raw.borderColor,
+                    borderWidth: d => d.raw.borderWidth,
+                    hoverBackgroundColor: d => d.raw.backgroundColor,
+                    hoverBorderColor: d => d.raw.borderColor,
+                    hoverBorderWidth: d => d.raw.borderWidth + 1,
                 }]
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: true,
+                maintainAspectRatio: false,
                 animation: {
                     duration: 0
                 },
                 plugins: {
+                    legend: {
+                        display: false
+                    },
                     tooltip: {
                         callbacks: {
                             label: function(context) {
                                 const data = context.raw;
+                                if (data.isSector) {
+                                    return [
+                                        `Sector: ${data.industry}`,
+                                        `Total Market Cap: $${data.marketCap.toFixed(2)}B`
+                                    ];
+                                }
                                 return [
                                     `Company: ${data.label}`,
                                     `Industry: ${data.industry}`,
-                                    `Price: $${data.price.toFixed(2)}`
+                                    `Market Cap: $${data.marketCap.toFixed(2)}B`
                                 ];
                             }
                         }
-                    },
-                    legend: {
-                        display: false
                     }
                 },
                 scales: {
                     x: {
                         display: false,
-                        min: 0,
+                        min: -10,
                         max: 100,
                         grid: {
                             display: false
@@ -489,7 +583,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     },
                     y: {
                         display: false,
-                        min: 0,
+                        min: -10,
                         max: 100,
                         grid: {
                             display: false
@@ -497,10 +591,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 },
                 layout: {
-                    padding: 20
+                    padding: 0
                 }
             }
         });
+    }
+
+    // Add utility function to calculate and format market cap
+    function calculateMarketCap(turnover, turnoverRate, price) {
+        if (!turnoverRate || turnoverRate === 0) return 0;
+        const marketCap = (turnover / turnoverRate) * price;
+        return marketCap / 1000000000; // Convert to billions
     }
 
 });
