@@ -22,7 +22,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let cachedIndustryData = {};
     let lineChartInstance = null;
     let bubblePositions = {};
-
+    let cachedStockData = {};  // Moved to top level
+    let cachedBubbleData = {};
+    
     // Find the Overview link and set it as active
     const overviewLink = document.querySelector('#industry-list a:first-child');
     if (overviewLink) {
@@ -312,95 +314,105 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+   
 
-    let cachedBubbleData = {};
-    let cachedStockData = {};
-
-    // Update loadOverview to accommodate the new layout
+   
     async function loadOverview() {
         mainViewer.innerHTML = '';
-
-        // Create outer container with fixed dimensions and padding
+    
+        // Create outer container with adjusted dimensions
         const outerContainer = document.createElement('div');
         outerContainer.style.width = '100%';
-        outerContainer.style.height = '900px'; // Increased height to accommodate legend
+        outerContainer.style.height = '80vh'; // Use viewport height instead of fixed pixels
         outerContainer.style.display = 'flex';
         outerContainer.style.flexDirection = 'column';
-        outerContainer.style.padding = '10px'; // Add padding to prevent bubble clipping
+        outerContainer.style.padding = '0'; // Remove padding to maximize space
         mainViewer.appendChild(outerContainer);
-
-        // Create chart container with fixed dimensions
+    
+        // Create chart container with adjusted dimensions
         const chartContainer = document.createElement('div');
         chartContainer.style.width = '100%';
-        chartContainer.style.height = '900px'; // Increased height
+        chartContainer.style.height = 'calc(100% - 100px)'; // Reserve space for legend
         chartContainer.style.position = 'relative';
         chartContainer.style.backgroundColor = '#ffffff';
         outerContainer.appendChild(chartContainer);
-
+    
         const bubbleCtx = document.createElement('canvas');
         bubbleCtx.style.width = '100%';
-        bubbleCtx.style.height = '100%';
+        bubbleCtx.style.height = '80%';
         chartContainer.appendChild(bubbleCtx);
-
-        // Create legend container
+    
+        // Create legend container with adjusted height
         const legendContainer = document.createElement('div');
         legendContainer.style.width = '100%';
-        legendContainer.style.height = '260px'; // Fixed height for legend
-        legendContainer.style.marginTop = '20px';
+        legendContainer.style.height = '150px';
+        legendContainer.style.marginTop = '10px';
         legendContainer.style.display = 'flex';
         legendContainer.style.flexWrap = 'wrap';
         legendContainer.style.justifyContent = 'center';
         legendContainer.style.gap = '5px';
         outerContainer.appendChild(legendContainer);
-
-        // Add industry legends
+    
+        // Add industry legends with improved spacing
         Object.entries(industryColors).forEach(([industry, color]) => {
             const legendItem = document.createElement('div');
             legendItem.style.display = 'flex';
             legendItem.style.alignItems = 'center';
-            legendItem.style.margin = '5px 10px';
+            legendItem.style.margin = '2px 8px';
+            legendItem.style.fontSize = '12px';
             
             const colorBox = document.createElement('span');
-            colorBox.style.width = '12px';
-            colorBox.style.height = '12px';
+            colorBox.style.width = '10px';
+            colorBox.style.height = '10px';
             colorBox.style.backgroundColor = color;
-            colorBox.style.marginRight = '5px';
+            colorBox.style.marginRight = '4px';
             colorBox.style.display = 'inline-block';
             
             legendItem.appendChild(colorBox);
             legendItem.appendChild(document.createTextNode(industry));
             legendContainer.appendChild(legendItem);
         });
-
+    
         if (Object.keys(bubblePositions).length === 0) {
             initializePositions();
         }
-
+    
         if (Object.keys(cachedStockData).length === 0) {
-            await initializeCache();
+            initializeCache().then(() => {
+                const bubbleData = createBubbleDataFromCache(dates[timeline.value]);
+                drawBubbleChart(bubbleData, bubbleCtx);
+            });
+        } else {
+            const bubbleData = createBubbleDataFromCache(dates[timeline.value]);
+            drawBubbleChart(bubbleData, bubbleCtx);
         }
-
-        const bubbleData = createBubbleDataFromCache(dates[timeline.value]);
-        drawBubbleChart(bubbleData, bubbleCtx);
     }
-
+    
     function initializePositions() {
         const industryNames = Object.keys(gicsIndustryData);
         const gridSize = Math.ceil(Math.sqrt(industryNames.length));
-        const cellSize = 70 / gridSize;  // Keep consistent grid size
-
-        // Fixed positions for each industry
+        const padding = 2;
+        const usableSpace = 100 - (2 * padding);
+        const cellSize = usableSpace / gridSize;
+    
         industryNames.forEach((industry, index) => {
             const row = Math.floor(index / gridSize);
             const col = index % gridSize;
-            const centerX = 0 + cellSize * col + cellSize/2;
-            const centerY = 0 + cellSize * row + cellSize/2;
+            const centerX = padding + cellSize * col + cellSize/2;
+            const centerY = padding + cellSize * row + cellSize/2;
             
-            // Store the center position for each company in the industry
             const companies = gicsIndustryData[industry];
+            const companyCount = companies.length;
+            
+            // Calculate a tighter radius for company distribution
+            const distributionRadius = cellSize / 8; // Reduced radius for tighter clustering
+            
             companies.forEach((company, companyIndex) => {
-                const angle = (companyIndex / companies.length) * 2 * Math.PI;
-                const radius = cellSize / 6; // Fixed radius for company distribution
+                // Use a spiral arrangement for better distribution
+                const angle = (companyIndex / companyCount) * 2 * Math.PI;
+                // Scale radius based on position in sequence (inner companies closer to center)
+                const radiusScale = Math.sqrt(companyIndex + 1) / Math.sqrt(companyCount);
+                const radius = distributionRadius * radiusScale;
                 
                 bubblePositions[company] = {
                     x: centerX + radius * Math.cos(angle),
@@ -409,7 +421,8 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
-
+   
+    
     async function initializeCache() {
         const industryNames = Object.keys(gicsIndustryData);
 
@@ -439,13 +452,13 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Cache initialized');
     }
 
+
     function createBubbleDataFromCache(selectedDate) {
         const bubbleData = [];
         const sectorData = {};
-        // Remove time-based expansion
-        const expansionFactor = 0.6; // Fixed expansion factor
-    
-        // First pass: Group companies by sector and calculate sector totals
+        const expansionFactor = 0.7; // Increased expansion factor for better spacing
+        
+        // First pass: Calculate sector data
         Object.entries(cachedStockData).forEach(([company, stockInfo]) => {
             if (!stockInfo || !bubblePositions[company]) return;
     
@@ -480,29 +493,31 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     
-        // Add sector circles (frames)
+        // Add sector circles first (to be drawn underneath)
         Object.entries(sectorData).forEach(([industry, data]) => {
             const centerX = data.sumX / data.count;
             const centerY = data.sumY / data.count;
             
-            // Calculate adjusted center position
             const adjustedX = 50 + (centerX - 50) * expansionFactor;
             const adjustedY = 50 + (centerY - 50) * expansionFactor;
     
+            // Add sector circle with reduced size
             bubbleData.push({
                 x: adjustedX,
                 y: adjustedY,
-                r: Math.sqrt(data.totalMarketCap) * 1.5 * expansionFactor,
+                r: Math.sqrt(data.totalMarketCap) * 1.0 * expansionFactor,
                 label: industry,
                 industry: industry,
                 marketCap: data.totalMarketCap,
-                backgroundColor: 'transparent',
+                backgroundColor: data.color.replace('1)', '0.1)'), // Make sector background translucent
                 borderColor: data.color,
-                borderWidth: 2,
+                borderWidth: 1,
                 isSector: true
             });
+        });
     
-            // Add company bubbles for this sector
+        // Add company bubbles on top
+        Object.entries(sectorData).forEach(([industry, data]) => {
             data.companies.forEach(({ company, marketCap, position }) => {
                 const adjustedCompanyX = 50 + (position.x - 50) * expansionFactor;
                 const adjustedCompanyY = 50 + (position.y - 50) * expansionFactor;
@@ -510,11 +525,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 bubbleData.push({
                     x: adjustedCompanyX,
                     y: adjustedCompanyY,
-                    r: Math.max(Math.sqrt(marketCap) * 0.8 * expansionFactor, 1),
+                    r: Math.max(Math.sqrt(marketCap) * 0.7 * expansionFactor, 1), // Reduced bubble size
                     label: companyCodeToName[company] || company,
                     industry: industry,
                     marketCap: marketCap,
-                    backgroundColor: data.color,
+                    backgroundColor: data.color.replace('1)', '0.7)'), // Make bubbles slightly translucent
                     borderColor: data.color,
                     borderWidth: 1,
                     isSector: false
@@ -524,12 +539,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
         return bubbleData;
     }
-
+    
     function drawBubbleChart(bubbleData, ctx) {
         if (chartInstance) {
             chartInstance.destroy();
         }
-
+    
         chartInstance = new Chart(ctx, {
             type: 'bubble',
             data: {
@@ -575,23 +590,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 scales: {
                     x: {
                         display: false,
-                        min: -10,
-                        max: 100,
+                        min: 10,  // Adjusted scale
+                        max: 90,
                         grid: {
                             display: false
                         }
                     },
                     y: {
                         display: false,
-                        min: -10,
-                        max: 100,
+                        min: 10,  // Adjusted scale
+                        max: 90,
                         grid: {
                             display: false
                         }
                     }
                 },
                 layout: {
-                    padding: 0
+                    padding: {
+                        top: 0,
+                        right: 0,
+                        bottom: 0,
+                        left: 0
+                    }
                 }
             }
         });
