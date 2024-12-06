@@ -6,7 +6,7 @@ Market Dynamic Visualization is the course project for the  CS-6630 at Universit
 ## Project Links
 We host the project via the github page.
 - **Project Website:** [https://dataviscourse2024.github.io/group-project-market-dynamic-visualization/ui.html](https://dataviscourse2024.github.io/group-project-market-dynamic-visualization/ui.html)
-- **Screencast Video:** [https://youtu.be/your-screencast-video](https://youtu.be/your-screencast-video)
+- **Screencast Video:** [![Demo video](https://res.cloudinary.com/marcomontalbano/image/upload/v1733520725/video_to_markdown/images/youtube--GHmokI53gSQ-c05b58ac6eb4c4700831b2b3070cd403.jpg)](https://www.youtube.com/watch?v=GHmokI53gSQ "Demo video")
 - **Repository:** [https://github.com/dataviscourse2024/group-project-market-dynamic-visualization.git](https://github.com/dataviscourse2024/group-project-market-dynamic-visualization.git)
 
 ## Features
