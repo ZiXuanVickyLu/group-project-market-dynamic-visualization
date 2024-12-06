@@ -25,7 +25,7 @@ We have provided the data we used for this project in the data folder. This data
 ### scripts
 We use javascript to build the frontend part of the application. The main code is in the stock_visualizer.js file. We define the project constants data on constant_data.js file.
 ### entrypoint
-The page is hosted on yi.html.
+The page is hosted on ui.html.
 ### resources
 The resources include figures and processing books.
 
