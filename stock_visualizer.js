@@ -369,19 +369,32 @@ document.addEventListener('DOMContentLoaded', () => {
             legendItem.appendChild(document.createTextNode(industry));
             legendContainer.appendChild(legendItem);
         });
+        
+        const loadingIndicator = document.createElement('div');
+        loadingIndicator.style.position = 'absolute';
+        loadingIndicator.style.top = '50%';
+        loadingIndicator.style.left = '50%';
+        loadingIndicator.style.transform = 'translate(-50%, -50%)';
+        loadingIndicator.style.fontSize = '1.2em';
+        loadingIndicator.textContent = 'Loading data...';
+        chartContainer.appendChild(loadingIndicator);
+
+        try {
+            if (Object.keys(bubblePositions).length === 0) {
+                initializePositions();
+            }
     
-        if (Object.keys(bubblePositions).length === 0) {
-            initializePositions();
-        }
+            if (Object.keys(cachedStockData).length === 0) {
+                await initializeCache();
+            }
     
-        if (Object.keys(cachedStockData).length === 0) {
-            initializeCache().then(() => {
-                const bubbleData = createBubbleDataFromCache(dates[timeline.value]);
-                drawBubbleChart(bubbleData, bubbleCtx);
-            });
-        } else {
             const bubbleData = createBubbleDataFromCache(dates[timeline.value]);
+            chartContainer.removeChild(loadingIndicator);
             drawBubbleChart(bubbleData, bubbleCtx);
+        } catch (error) {
+            console.error('Error in loadOverview:', error);
+            loadingIndicator.textContent = 'Error loading data. Please refresh the page.';
+            loadingIndicator.style.color = 'red';
         }
     }
     
@@ -422,197 +435,216 @@ document.addEventListener('DOMContentLoaded', () => {
     
     async function initializeCache() {
         const industryNames = Object.keys(gicsIndustryData);
-
+        const loadingPromises = [];
+    
         for (const industryName of industryNames) {
             const companies = gicsIndustryData[industryName];
-
+    
             for (const company of companies) {
-                const stockFilePath = `data/GICS_Stock_Data/${industryName}/${company}.json`;
-                try {
-                    const response = await fetch(stockFilePath);
-                    if (!response.ok) {
-                        throw new Error(`Failed to load file: ${company}`);
+                const promise = (async () => {
+                    const stockFilePath = `data/GICS_Stock_Data/${industryName}/${company}.json`;
+                    try {
+                        const response = await fetch(stockFilePath);
+                        if (!response.ok) {
+                            throw new Error(`Failed to load file: ${company}`);
+                        }
+                        const data = await response.json();
+                        if (!Array.isArray(data) || data.length === 0) {
+                            throw new Error(`Invalid data format for ${company}`);
+                        }
+                        // Cache the full stock data
+                        cachedStockData[company] = {
+                            data: data,
+                            industry: industryName,
+                            color: industryColors[industryName] || 'rgba(75, 192, 192, 1)'
+                        };
+                    } catch (error) {
+                        console.error(`Error loading data for ${company}:`, error);
+                        // Instead of null, provide a minimal valid structure
+                        cachedStockData[company] = {
+                            data: [],
+                            industry: industryName,
+                            color: industryColors[industryName] || 'rgba(75, 192, 192, 1)',
+                            error: true
+                        };
                     }
-                    const data = await response.json();
-                    // Cache the full stock data
-                    cachedStockData[company] = {
-                        data: data,
-                        industry: industryName,
-                        color: industryColors[industryName] || 'rgba(75, 192, 192, 1)'
-                    };
-                } catch (error) {
-                    console.error(`Error loading data for ${company}:`, error);
-                    cachedStockData[company] = null;
-                }
+                })();
+                loadingPromises.push(promise);
             }
         }
+    
+        await Promise.all(loadingPromises);
         console.log('Cache initialized');
+        return true;
     }
+    // Modify createBubbleDataFromCache to ensure all required properties are set
+function createBubbleDataFromCache(selectedDate) {
+    const bubbleData = [];
+    const sectorData = {};
+    const expansionFactor = 0.7;
+    
+    // First pass: Calculate sector data
+    Object.entries(cachedStockData).forEach(([company, stockInfo]) => {
+        if (!stockInfo || !bubblePositions[company]) return;
 
+        const priceData = stockInfo.data.find(item => item.date === selectedDate);
+        const marketCap = priceData ? calculateMarketCap(
+            parseFloat(priceData.turnover),
+            parseFloat(priceData.turnover_rate),
+            parseFloat(priceData.close)
+        ) : 0;
 
-    function createBubbleDataFromCache(selectedDate) {
-        const bubbleData = [];
-        const sectorData = {};
-        const expansionFactor = 0.7; // Increased expansion factor for better spacing
-        
-        // First pass: Calculate sector data
-        Object.entries(cachedStockData).forEach(([company, stockInfo]) => {
-            if (!stockInfo || !bubblePositions[company]) return;
-    
-            const priceData = stockInfo.data.find(item => item.date === selectedDate);
-            const marketCap = priceData ? calculateMarketCap(
-                parseFloat(priceData.turnover),
-                parseFloat(priceData.turnover_rate),
-                parseFloat(priceData.close)
-            ) : 0;
-    
-            const industry = stockInfo.industry;
-            if (!sectorData[industry]) {
-                sectorData[industry] = {
-                    totalMarketCap: 0,
-                    companies: [],
-                    sumX: 0,
-                    sumY: 0,
-                    count: 0,
-                    color: stockInfo.color
-                };
-            }
-    
-            const position = bubblePositions[company];
-            sectorData[industry].totalMarketCap += marketCap;
-            sectorData[industry].sumX += position.x;
-            sectorData[industry].sumY += position.y;
-            sectorData[industry].count++;
-            sectorData[industry].companies.push({
-                company,
-                marketCap,
-                position
-            });
+        if (marketCap <= 0) return; // Skip invalid market caps
+
+        const industry = stockInfo.industry;
+        if (!sectorData[industry]) {
+            sectorData[industry] = {
+                totalMarketCap: 0,
+                companies: [],
+                sumX: 0,
+                sumY: 0,
+                count: 0,
+                color: stockInfo.color
+            };
+        }
+
+        const position = bubblePositions[company];
+        sectorData[industry].totalMarketCap += marketCap;
+        sectorData[industry].sumX += position.x;
+        sectorData[industry].sumY += position.y;
+        sectorData[industry].count++;
+        sectorData[industry].companies.push({
+            company,
+            marketCap,
+            position
         });
-    
-        // Add sector circles first (to be drawn underneath)
-        Object.entries(sectorData).forEach(([industry, data]) => {
+    });
+
+    // Make sure each sector has at least one company before creating bubbles
+    Object.entries(sectorData).forEach(([industry, data]) => {
+        if (data.count > 0) {
             const centerX = data.sumX / data.count;
             const centerY = data.sumY / data.count;
             
             const adjustedX = 50 + (centerX - 50) * expansionFactor;
             const adjustedY = 50 + (centerY - 50) * expansionFactor;
-    
-            // Add sector circle with reduced size
+
+            // Add sector bubble with all required properties
             bubbleData.push({
                 x: adjustedX,
                 y: adjustedY,
-                r: Math.sqrt(data.totalMarketCap) * 1.0 * expansionFactor,
+                r: Math.max(Math.sqrt(data.totalMarketCap) * 1.0 * expansionFactor, 1),
                 label: industry,
                 industry: industry,
                 marketCap: data.totalMarketCap,
-                backgroundColor: data.color.replace('1)', '0.1)'), // Make sector background translucent
+                backgroundColor: data.color.replace('1)', '0.1)'),
                 borderColor: data.color,
                 borderWidth: 1,
                 isSector: true
             });
-        });
-    
-        // Add company bubbles on top
-        Object.entries(sectorData).forEach(([industry, data]) => {
+
+            // Add company bubbles
             data.companies.forEach(({ company, marketCap, position }) => {
-                const adjustedCompanyX = 50 + (position.x - 50) * expansionFactor;
-                const adjustedCompanyY = 50 + (position.y - 50) * expansionFactor;
-    
-                bubbleData.push({
-                    x: adjustedCompanyX,
-                    y: adjustedCompanyY,
-                    r: Math.max(Math.sqrt(marketCap) * 0.7 * expansionFactor, 1), // Reduced bubble size
-                    label: companyCodeToName[company] || company,
-                    industry: industry,
-                    marketCap: marketCap,
-                    backgroundColor: data.color.replace('1)', '0.7)'), // Make bubbles slightly translucent
-                    borderColor: data.color,
-                    borderWidth: 1,
-                    isSector: false
-                });
+                if (marketCap > 0) {
+                    const adjustedCompanyX = 50 + (position.x - 50) * expansionFactor;
+                    const adjustedCompanyY = 50 + (position.y - 50) * expansionFactor;
+
+                    bubbleData.push({
+                        x: adjustedCompanyX,
+                        y: adjustedCompanyY,
+                        r: Math.max(Math.sqrt(marketCap) * 0.7 * expansionFactor, 1),
+                        label: companyCodeToName[company] || company,
+                        industry: industry,
+                        marketCap: marketCap,
+                        backgroundColor: data.color.replace('1)', '0.7)'),
+                        borderColor: data.color,
+                        borderWidth: 1,
+                        isSector: false
+                    });
+                }
             });
-        });
-    
-        return bubbleData;
-    }
-    
-    function drawBubbleChart(bubbleData, ctx) {
-        if (chartInstance) {
-            chartInstance.destroy();
         }
-    
-        chartInstance = new Chart(ctx, {
-            type: 'bubble',
-            data: {
-                datasets: [{
-                    data: bubbleData,
-                    backgroundColor: d => d.raw.backgroundColor,
-                    borderColor: d => d.raw.borderColor,
-                    borderWidth: d => d.raw.borderWidth,
-                    hoverBackgroundColor: d => d.raw.backgroundColor,
-                    hoverBorderColor: d => d.raw.borderColor,
-                    hoverBorderWidth: d => d.raw.borderWidth + 1,
-                }]
+    });
+
+    return bubbleData;
+}
+
+// Modify drawBubbleChart to ensure proper data handling
+function drawBubbleChart(bubbleData, ctx) {
+    if (chartInstance) {
+        chartInstance.destroy();
+    }
+
+    // Ensure we have valid data
+    if (!Array.isArray(bubbleData) || bubbleData.length === 0) {
+        console.warn('No valid bubble data to display');
+        return;
+    }
+
+    chartInstance = new Chart(ctx, {
+        type: 'bubble',
+        data: {
+            datasets: [{
+                data: bubbleData,
+                backgroundColor: d => d.raw.backgroundColor || 'rgba(75, 192, 192, 0.5)',
+                borderColor: d => d.raw.borderColor || 'rgba(75, 192, 192, 1)',
+                borderWidth: d => d.raw.borderWidth || 1,
+                hoverBackgroundColor: d => d.raw.backgroundColor || 'rgba(75, 192, 192, 0.7)',
+                hoverBorderColor: d => d.raw.borderColor || 'rgba(75, 192, 192, 1)',
+                hoverBorderWidth: d => (d.raw.borderWidth || 1) + 1,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: {
+                duration: 0
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: {
-                    duration: 0
+            plugins: {
+                legend: {
+                    display: false
                 },
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const data = context.raw;
-                                if (data.isSector) {
-                                    return [
-                                        `Sector: ${data.industry}`,
-                                        `Total Market Cap: $${data.marketCap.toFixed(2)}B`
-                                    ];
-                                }
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            if (!context.raw) return null;
+                            
+                            if (context.raw.isSector) {
                                 return [
-                                    `Company: ${data.label}`,
-                                    `Industry: ${data.industry}`,
-                                    `Market Cap: $${data.marketCap.toFixed(2)}B`
+                                    `Sector: ${context.raw.industry || 'Unknown'}`,
+                                    `Total Market Cap: $${(context.raw.marketCap || 0).toFixed(2)}B`
                                 ];
                             }
+                            return [
+                                `Company: ${context.raw.label || 'Unknown'}`,
+                                `Industry: ${context.raw.industry || 'Unknown'}`,
+                                `Market Cap: $${(context.raw.marketCap || 0).toFixed(2)}B`
+                            ];
                         }
                     }
-                },
-                scales: {
-                    x: {
-                        display: false,
-                        min: 10,  // Adjusted scale
-                        max: 90,
-                        grid: {
-                            display: false
-                        }
-                    },
-                    y: {
-                        display: false,
-                        min: 10,  // Adjusted scale
-                        max: 90,
-                        grid: {
-                            display: false
-                        }
+                }
+            },
+            scales: {
+                x: {
+                    display: false,
+                    min: 10,
+                    max: 90,
+                    grid: {
+                        display: false
                     }
                 },
-                layout: {
-                    padding: {
-                        top: 0,
-                        right: 0,
-                        bottom: 0,
-                        left: 0
+                y: {
+                    display: false,
+                    min: 10,
+                    max: 90,
+                    grid: {
+                        display: false
                     }
                 }
             }
-        });
-    }
+        }
+    });
+}
 
     // Add utility function to calculate and format market cap
     function calculateMarketCap(turnover, turnoverRate, price) {
