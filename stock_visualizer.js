@@ -1,8 +1,5 @@
 // JavaScript file to visualize stock price data for selected GICS industries
 
-// Import necessary charting library (e.g., Chart.js)
-// Assuming Chart.js is included in the HTML file via a script tag
-
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -28,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Find the Overview link and set it as active
     const overviewLink = document.querySelector('#industry-list a:first-child');
     if (overviewLink) {
-        // Set the color to orange (as your active state)
+        // Set the color to orange (as active state)
         overviewLink.style.color = 'orange';
         // Load the Overview visualization
         loadOverview();
