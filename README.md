@@ -1,4 +1,5 @@
 # Market Dynamic Visualization
+This is the final project for CS-6630, Visualization for Data Science.
 
 ## Project Overview
 Market Dynamic Visualization is the course project for the  CS-6630 at University of Utah. On this project, we build a web application that allows users to visualize the dynamic of market captialization within various industrial subsectors. 
@@ -29,7 +30,3 @@ The page is hosted on ui.html.
 ### resources
 The resources include figures and processing books.
 
-
-## Team Members
-- **Zixuan Lu** (u6053162, birdpeople1984@gmail.com)
-- **Chun Yuan** (u6052162, u6052162@utah.edu)
